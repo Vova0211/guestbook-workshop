@@ -1,0 +1,1 @@
+SELECT author, text FROM messages ORDER BY id DESC

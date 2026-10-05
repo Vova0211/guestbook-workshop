@@ -1,39 +1,14 @@
-from contextlib import asynccontextmanager
-
-import psycopg
 from fastapi import FastAPI
-from pydantic import BaseModel
 
-# ⚠️ Пока всё зашито прямо в код — это и предстоит исправить.
-DATABASE_URL = "postgresql://guestbook:supersecret123@localhost:5432/guestbook"
-GREETING = "Добро пожаловать в гостевую книгу!"
+from config import settings
+from database.MessagesDB import MessagesDB
+from database.utils import Message
 
-
-def connect():
-    return psycopg.connect(DATABASE_URL)
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    with connect() as conn:
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS messages ("
-            "id SERIAL PRIMARY KEY, author TEXT, text TEXT)"
-        )
-    yield
-
-
-app = FastAPI(lifespan=lifespan)
-
-
-class Message(BaseModel):
-    author: str
-    text: str
-
-
+app = FastAPI()
+db = MessagesDB(settings.database_url)
 @app.get("/")
 def index():
-    return {"message": GREETING}
+    return {"message": settings.greeting}
 
 
 @app.get("/health")
@@ -43,18 +18,14 @@ def health():
 
 @app.get("/messages")
 def list_messages():
-    with connect() as conn:
-        rows = conn.execute(
-            "SELECT author, text FROM messages ORDER BY id DESC"
-        ).fetchall()
-    return [{"author": author, "text": text} for author, text in rows]
+    return db.get_all_messages()
 
 
 @app.post("/messages")
 def add_message(message: Message):
-    with connect() as conn:
-        conn.execute(
-            "INSERT INTO messages (author, text) VALUES (%s, %s)",
-            (message.author, message.text),
-        )
+    db.add_message(message)
+
     return {"ok": True}
+#
+# if __name__ == "__main__":
+#     uvicorn.run(app, host="0.0.0.0", port=8000)
